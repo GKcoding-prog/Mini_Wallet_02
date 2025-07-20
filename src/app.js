@@ -1,11 +1,16 @@
 require('dotenv').config();
 const express = require('express');
+const multer = require('multer');
 const app = express();
 const sequelize = require('./config/database');
 const authRoutes = require('./routes/authRoutes');
 const walletRoutes = require('./routes/walletRoutes');
+require('./models/Otp');
+require('./models/BlacklistedToken');
 
-app.use(express.json());
+app.use(express.json()); // Parser JSON
+app.use(express.urlencoded({ extended: true })); // Parser formulaires urlencoded
+app.use(multer().none()); // Parser formulaires multipart sans fichiers
 
 app.use('/api/auth', authRoutes);
 app.use('/api/wallet', walletRoutes);
