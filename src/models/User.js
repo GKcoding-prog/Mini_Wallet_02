@@ -9,20 +9,29 @@ const User = sequelize.define('User', {
   },
   email: {
     type: DataTypes.STRING,
-    unique: true,
     allowNull: false,
+    unique: true,
   },
   password: {
     type: DataTypes.STRING,
     allowNull: false,
   },
   encrypted_key: {
-    type: DataTypes.TEXT, // Revenir à TEXT
+    type: DataTypes.TEXT,
     allowNull: false,
   },
   balance: {
-    type: DataTypes.DECIMAL,
+    type: DataTypes.DECIMAL(15, 8),
     defaultValue: 0,
+  },
+  bitcoinAddress: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    unique: true,
+  },
+  encrypted_private_key: {
+    type: DataTypes.TEXT,
+    allowNull: true,
   },
 });
 

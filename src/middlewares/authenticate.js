@@ -1,15 +1,22 @@
 const jwt = require('jsonwebtoken');
+const { User, BlacklistedToken } = require('../models');
 require('dotenv').config();
 
-function authenticate(req, res, next) {
+async function authenticate(req, res, next) {
   const authHeader = req.headers['authorization'];
   if (!authHeader) return res.status(401).json({ message: 'Token manquant' });
 
-  const token = authHeader.split(' ')[1] || authHeader; // support "Bearer TOKEN" ou juste "TOKEN"
+  const token = authHeader.split(' ')[1] || authHeader;
+
+  const blacklisted = await BlacklistedToken.findOne({ where: { token } });
+  if (blacklisted) return res.status(401).json({ message: 'Token invalide' });
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
+    const user = await User.findByPk(decoded.id);
+    if (!user) return res.status(401).json({ message: 'Utilisateur non trouvé' });
+
+    req.user = { id: user.id, email: user.email, aesKey: decoded.aesKey };
     next();
   } catch (err) {
     return res.status(403).json({ message: 'Token invalide' });
