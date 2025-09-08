@@ -8,7 +8,7 @@ const User = sequelize.define('User', {
     primaryKey: true,
   },
   email: {
-    type: DataTypes.STRING,
+    type: DataTypes.STRING(100),
     allowNull: false,
     unique: true,
   },
@@ -20,19 +20,23 @@ const User = sequelize.define('User', {
     type: DataTypes.TEXT,
     allowNull: false,
   },
-  balance: {
-    type: DataTypes.DECIMAL(15, 8),
-    defaultValue: 0,
+  role: {
+    type: DataTypes.ENUM('user', 'admin'),
+    allowNull: false,
+    defaultValue: 'user',
   },
-  bitcoinAddress: {
-    type: DataTypes.STRING,
-    allowNull: true,
-    unique: true,
+  created_at: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW,
   },
-  encrypted_private_key: {
-    type: DataTypes.TEXT,
-    allowNull: true,
-  },
+}, {
+  tableName: 'users',
+  timestamps: false,
 });
+
+// Optionnel : méthode associate si utilisée
+User.associate = function (models) {
+  User.hasOne(models.Wallet, { foreignKey: 'user_id' });
+};
 
 module.exports = User;

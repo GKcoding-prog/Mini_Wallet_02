@@ -1,11 +1,10 @@
 const express = require('express');
-const { deposit, withdraw, transfer, getHistory } = require('../controllers/walletController');
-const authenticate = require('../middlewares/authenticate');
 const router = express.Router();
+const userController = require('../controllers/userController');
 
-router.post('/deposit', authenticate, deposit);
-router.post('/withdraw', authenticate, withdraw);
-router.post('/transfer', authenticate, transfer);
-router.get('/history', authenticate, getHistory);
+router.get('/list', userController.listUsers);
+router.get('/balance', userController.getBalance);
+router.post('/send-bitcoin', userController.sendBitcoin);
+router.post('/transactions', userController.getTransactionHistory);
 
 module.exports = router;

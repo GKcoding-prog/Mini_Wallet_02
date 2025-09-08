@@ -1,23 +1,20 @@
 const crypto = require('crypto');
 
-function encryptData(text, key) {
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
-  let encrypted = cipher.update(text, 'utf8', 'hex');
+const algorithm = 'aes-256-cbc';
+const ivLength = 16;
+
+function encryptData(data, key) {
+  const iv = crypto.randomBytes(ivLength);
+  const cipher = crypto.createCipheriv(algorithm, key, iv);
+  let encrypted = cipher.update(data, 'utf8', 'hex');
   encrypted += cipher.final('hex');
-  return {
-    iv: iv.toString('hex'),
-    content: encrypted,
-  };
+  return { iv: iv.toString('hex'), encryptedData: encrypted };
 }
 
-function decryptData(encrypted, key) {
-  const decipher = crypto.createDecipheriv(
-    'aes-256-cbc',
-    key,
-    Buffer.from(encrypted.iv, 'hex')
-  );
-  let decrypted = decipher.update(encrypted.content, 'hex', 'utf8');
+function decryptData(encryptedObj, key) {
+  const iv = Buffer.from(encryptedObj.iv, 'hex');
+  const decipher = crypto.createDecipheriv(algorithm, key, iv);
+  let decrypted = decipher.update(encryptedObj.encryptedData, 'hex', 'utf8');
   decrypted += decipher.final('utf8');
   return decrypted;
 }

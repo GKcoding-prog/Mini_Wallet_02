@@ -16,6 +16,9 @@ const BlacklistedToken = sequelize.define('BlacklistedToken', {
     type: DataTypes.DATE,
     allowNull: false,
   },
+}, {
+  tableName: 'blacklisted_tokens',
+  timestamps: false,
 });
 
 module.exports = BlacklistedToken;

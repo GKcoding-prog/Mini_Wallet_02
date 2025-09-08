@@ -21,3 +21,6 @@ async function sendOtpEmail(email, otp) {
 }
 
 module.exports = { sendOtpEmail };
+
+
+
