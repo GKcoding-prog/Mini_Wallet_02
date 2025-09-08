@@ -21,7 +21,7 @@ const Otp = sequelize.define('Otp', {
   },
 }, {
   tableName: 'Otps',
-  timestamps: false,
+  // timestamps: true par défaut, donc pas besoin de le spécifier
 });
 
 module.exports = Otp;
