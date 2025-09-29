@@ -26,7 +26,8 @@ const Transaction = sequelize.define('Transaction', {
     },
     onDelete: 'SET NULL',
     onUpdate: 'CASCADE',
-    field: 'senderid', // Mappe senderId à la colonne senderid
+    // Mappe senderId à la colonne senderid
+    field: 'senderid', 
   },
   receiverId: {
     type: DataTypes.UUID,
@@ -37,7 +38,8 @@ const Transaction = sequelize.define('Transaction', {
     },
     onDelete: 'SET NULL',
     onUpdate: 'CASCADE',
-    field: 'receiverid', // Mappe receiverId à la colonne receiverid
+    // Mappe receiverId à la colonne receiverid
+    field: 'receiverid', 
   },
   encrypted_data: {
     type: DataTypes.TEXT,
@@ -47,7 +49,7 @@ const Transaction = sequelize.define('Transaction', {
     type: DataTypes.ENUM('deposit', 'withdrawal'),
     allowNull: false,
   },
-  txId: {
+  txid: {
     type: DataTypes.STRING(64),
     allowNull: true,
   },
