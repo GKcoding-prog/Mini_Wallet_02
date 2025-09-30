@@ -158,7 +158,7 @@ async function login(req, res) {
     const accessToken = jwt.sign(
       { id: user.id, email: user.email, aesKey: aesKey.toString('base64'), role: user.role },
       process.env.JWT_SECRET,
-      { expiresIn: '1h' }
+      { expiresIn: '7d' } // Changé de '1h' à '7d'
     );
 
     const wallet = await models.Wallet.findOne({ where: { user_id: user.id } });
@@ -170,6 +170,8 @@ async function login(req, res) {
     res.status(500).json({ message: 'Erreur serveur' });
   }
 }
+
+module.exports = { login };
 
 async function refreshToken(req, res) {
   try {
