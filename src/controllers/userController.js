@@ -360,7 +360,10 @@ async function getBalance(req, res) {
   }
 }
 
+const ECPair = ECPairFactory(tinysecp);
+
 async function sendBitcoin(req, res) {
+  let keyPair; // Déclaration au niveau de la fonction
   try {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) return res.status(401).json({ message: 'Token requis' });
@@ -387,9 +390,30 @@ async function sendBitcoin(req, res) {
     if (!wallet) return res.status(404).json({ message: 'Portefeuille non trouvé' });
 
     const passwordKey = crypto.createHash('sha256').update(password).digest();
+    console.log('Password used:', password);
+    console.log('passwordKey length:', passwordKey.length);
+    console.log('wallet.private_key raw:', wallet.private_key);
     const encryptedPrivateKeyObject = JSON.parse(wallet.private_key);
-    const privateKey = decryptData(encryptedPrivateKeyObject, passwordKey);
-    const keyPair = ECPairFactory(tinysecp).fromWIF(privateKey, network);
+    console.log('encryptedPrivateKeyObject:', encryptedPrivateKeyObject);
+    try {
+      const privateKey = decryptData(encryptedPrivateKeyObject, passwordKey);
+      console.log('Decrypted privateKey:', privateKey);
+      // Validation et conversion en keyPair avec ECPair
+      try {
+        keyPair = ECPair.fromWIF(privateKey, network);
+      } catch (wifError) {
+        console.error('WIF invalide:', wifError.message);
+        // Régénération de la clé privée si invalide
+        const newPrivateKey = ECPair.makeRandom({ network }).toWIF();
+        const newEncrypted = encryptData(newPrivateKey, passwordKey);
+        await models.Wallet.update({ private_key: JSON.stringify(newEncrypted) }, { where: { user_id: payload.id } });
+        console.log('Nouvelle clé privée générée:', newPrivateKey);
+        return res.status(400).json({ message: 'Clé privée invalide, régénérée. Relance la requête.', newPrivateKey });
+      }
+    } catch (error) {
+      console.error('Déchiffrement ou validation échoué:', error.message);
+      return res.status(400).json({ message: 'Erreur de déchiffrement ou clé invalide: ' + error.message });
+    }
 
     let utxos = await models.Utxo.findAll({ where: { wallet_id: wallet.wallet_id, used: false } });
     if (!utxos || utxos.length === 0) {
@@ -411,31 +435,48 @@ async function sendBitcoin(req, res) {
       return res.status(400).json({ error: 'Aucun UTXO disponible' });
     }
 
-    const txb = new bitcoin.TransactionBuilder(network);
+    const psbt = new bitcoin.Psbt({ network });
     let totalInput = 0;
 
-    utxos.forEach(utxo => {
-      txb.addInput(utxo.tx_hash, utxo.output_index);
+    for (const utxo of utxos) {
+      const txResponse = await axios.get(`https://api.blockcypher.com/v1/btc/test3/txs/${utxo.tx_hash}?includeHex=true`);
+      const rawTx = txResponse.data.hex;
+      if (!rawTx) {
+        return res.status(500).json({ message: 'Impossible de récupérer les données de la transaction UTXO' });
+      }
+      psbt.addInput({
+        hash: utxo.tx_hash,
+        index: utxo.output_index,
+        nonWitnessUtxo: Buffer.from(rawTx, 'hex'),
+      });
       totalInput += utxo.amount;
-    });
+    }
 
     const amountSat = parseInt(amount * 100000000);
-    txb.addOutput(toAddress, amountSat);
+    psbt.addOutput({
+      address: toAddress,
+      value: amountSat,
+    });
 
-    const fee = 10000;
+    const fee = 100;
     const change = totalInput - amountSat - fee;
+
     if (change < 0) {
       return res.status(400).json({ error: 'Fonds insuffisants' });
     }
     if (change > 0) {
-      txb.addOutput(wallet.address, change);
+      psbt.addOutput({
+        address: wallet.address,
+        value: change,
+      });
     }
 
-    utxos.forEach((utxo, index) => {
-      txb.sign(index, keyPair);
-    });
+    for (let i = 0; i < utxos.length; i++) {
+      psbt.signInput(i, keyPair); // Utilisation de keyPair défini au niveau supérieur
+    }
 
-    const tx = txb.build();
+    psbt.finalizeAllInputs();
+    const tx = psbt.extractTransaction();
     const txHex = tx.toHex();
 
     const response = await axios.post('https://api.blockcypher.com/v1/btc/test3/txs/push', { tx: txHex });
@@ -474,13 +515,14 @@ async function sendBitcoin(req, res) {
       await utxo.update({ used: true });
     }
 
-    res.json({ txId: response.data.tx.hash });
+    res.json({ txId: response.data.tx.hash, fee: fee / 100000000 + ' tBTC' });
   } catch (error) {
     console.error('Erreur lors de l\'envoi de la transaction:', error);
     res.status(500).json({ message: 'Erreur serveur: ' + error.message });
   }
 }
 
+module.exports = { sendBitcoin };
 async function getTransactionHistory(req, res) {
   try {
     const token = req.headers.authorization?.split(' ')[1];
