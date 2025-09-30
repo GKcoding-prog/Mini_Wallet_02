@@ -484,7 +484,7 @@ async function sendBitcoin(req, res) {
     const receiverWallet = await models.Wallet.findOne({ where: { address: toAddress } });
     const receiverId = receiverWallet ? receiverWallet.user_id : null;
 
-    const txData = { txId: response.data.tx.hash, amount, toAddress };
+    const txData = { txid: response.data.tx.hash, amount, toAddress };
     const encryptedTxData = JSON.stringify(encryptData(JSON.stringify(txData), passwordKey));
 
     await models.Transaction.create({
@@ -493,7 +493,7 @@ async function sendBitcoin(req, res) {
       receiverId,
       encrypted_data: encryptedTxData,
       type: 'withdrawal',
-      txId: response.data.tx.hash,
+      txid: response.data.tx.hash,
       status: 'pending',
       confirmations: 0,
     });
@@ -505,7 +505,7 @@ async function sendBitcoin(req, res) {
         receiverId,
         encrypted_data: encryptedTxData,
         type: 'deposit',
-        txId: response.data.tx.hash,
+        txid: response.data.tx.hash,
         status: 'pending',
         confirmations: 0,
       });
@@ -515,14 +515,14 @@ async function sendBitcoin(req, res) {
       await utxo.update({ used: true });
     }
 
-    res.json({ txId: response.data.tx.hash, fee: fee / 100000000 + ' tBTC' });
+    res.json({ txid: response.data.tx.hash, fee: fee / 100000000 + ' tBTC' });
   } catch (error) {
     console.error('Erreur lors de l\'envoi de la transaction:', error);
     res.status(500).json({ message: 'Erreur serveur: ' + error.message });
   }
 }
-
 module.exports = { sendBitcoin };
+
 async function getTransactionHistory(req, res) {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -534,7 +534,7 @@ async function getTransactionHistory(req, res) {
 
     const transactions = await models.Transaction.findAll({
       where: { wallet_id: wallet.wallet_id },
-      attributes: ['id', 'type', 'txId', 'status', 'confirmations', 'created_at'],
+      attributes: ['id', 'type', 'txid', 'status', 'confirmations', 'created_at', 'encrypted_data'],
       include: [
         { model: models.User, as: 'Sender', attributes: ['email'] },
         { model: models.User, as: 'Receiver', attributes: ['email'] },
@@ -551,17 +551,26 @@ async function getTransactionHistory(req, res) {
 
     const passwordKey = crypto.createHash('sha256').update(password).digest();
     const decryptedTransactions = transactions.map(tx => {
-      const encryptedData = JSON.parse(tx.encrypted_data);
-      const decryptedData = JSON.parse(decryptData(encryptedData, passwordKey));
+      let decryptedData = {};
+      try {
+        if (tx.encrypted_data) {
+          const encryptedData = JSON.parse(tx.encrypted_data);
+          const rawDecryptedData = decryptData(encryptedData, passwordKey);
+          decryptedData = JSON.parse(rawDecryptedData);
+        }
+      } catch (error) {
+        console.warn(`Échec du déchiffrement pour transaction ${tx.id}:`, error.message);
+        decryptedData = { error: 'Données corrompues ou mot de passe incorrect' };
+      }
       return {
         id: tx.id,
         type: tx.type,
-        txId: tx.txId,
+        txid: tx.txid,
         status: tx.status,
         confirmations: tx.confirmations,
         created_at: tx.created_at,
-        senderEmail: tx.Sender?.email,
-        receiverEmail: tx.Receiver?.email,
+        senderEmail: tx.Sender?.email || null,
+        receiverEmail: tx.Receiver?.email || null,
         ...decryptedData,
       };
     });
@@ -569,9 +578,11 @@ async function getTransactionHistory(req, res) {
     res.json(decryptedTransactions);
   } catch (error) {
     console.error('Erreur lors de la récupération de l\'historique:', error);
-    res.status(500).json({ message: 'Erreur serveur' });
+    res.status(500).json({ message: 'Erreur serveur: ' + error.message });
   }
 }
+
+module.exports = { getTransactionHistory };
 
 module.exports = {
   register,
