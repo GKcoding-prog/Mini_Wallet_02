@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const userController = require('../controllers/userController');
+const authController = require('../controllers/authController'); // Changé de userController à authController
 const adminSecret = require('../middlewares/adminSecret');
 
-router.post('/register', userController.register);
-router.post('/verify-otp', userController.verifyOtp);
-router.post('/login', userController.login);
-router.post('/refresh-token', userController.refreshToken);
-router.post('/logout', userController.logout);
-router.post('/create-admin', adminSecret, userController.createAdmin);
+router.post('/register', authController.register);
+router.post('/verify-otp', authController.verifyOtp);
+router.post('/login', authController.login);
+router.post('/refresh-token', authController.refreshToken);
+router.post('/logout', authController.logout);
+router.post('/create-admin', adminSecret, authController.createAdmin);
 
 module.exports = router;

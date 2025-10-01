@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const userController = require('../controllers/userController');
+const walletController = require('../controllers/walletController'); // Changé de userController à walletController
 
-router.get('/list', userController.listUsers);
-router.get('/balance', userController.getBalance);
-router.post('/send-bitcoin', userController.sendBitcoin);
-router.post('/transactions', userController.getTransactionHistory);
+router.get('/list', walletController.listUsers);
+router.get('/balance', walletController.getBalance);
+router.post('/send-bitcoin', walletController.sendBitcoin);
+router.post('/transactions', walletController.getTransactionHistory);
 
 module.exports = router;
