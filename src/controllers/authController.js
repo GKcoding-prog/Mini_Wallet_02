@@ -1,14 +1,13 @@
+const { encryptData, decryptData } = require('../services/encryption'); // Ajout de encryptData
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { models } = require('../models');
-const { decryptData } = require('../services/encryption');
 const speakeasy = require('speakeasy');
 const { checkEmailExists } = require('./utils');
 const { SALT_ROUNDS } = require('./constants');
 const { sendOtpEmail } = require('../services/email');
 const { createWallet, fetchAndSaveUtxos } = require('./walletUtils');
-
 async function register(req, res) {
   try {
     const { email, password } = req.body;
@@ -60,10 +59,21 @@ async function verifyOtp(req, res) {
     await otpRecord.destroy();
 
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+
+    // Générer une clé AES aléatoire (32 octets)
+    const aesKey = crypto.randomBytes(32).toString('hex');
+
+    // Créer une clé dérivée à partir du mot de passe pour le chiffrement
+    const passwordKey = crypto.createHash('sha256').update(password).digest();
+
+    // Chiffrer la clé AES avec la clé dérivée
+    const encryptedKeyObject = encryptData(aesKey, passwordKey);
+
     const user = await models.User.create({
       email,
       password: hashedPassword,
       role: 'user',
+      encrypted_key: JSON.stringify(encryptedKeyObject), // Stocke l'objet chiffré
     });
 
     const { address } = await createWallet(user, password);
@@ -78,6 +88,8 @@ async function verifyOtp(req, res) {
     res.status(500).json({ message: `Erreur serveur: ${error.message}` });
   }
 }
+
+module.exports = { verifyOtp }; // Assure-toi que cette exportation existe
 
 async function login(req, res) {
   try {
