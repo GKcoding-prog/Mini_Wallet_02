@@ -26,6 +26,10 @@ const Wallet = sequelize.define('Wallet', {
     type: DataTypes.TEXT,
     allowNull: false,
   },
+  server_encrypted_private_key: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
   created_at: {
     type: DataTypes.DATE,
     defaultValue: DataTypes.NOW,
@@ -37,6 +41,7 @@ const Wallet = sequelize.define('Wallet', {
 
 Wallet.associate = function (models) {
   Wallet.hasMany(models.Utxo, { foreignKey: 'wallet_id' });
+  Wallet.hasMany(models.Transaction, { foreignKey: 'wallet_id' });
 };
 
 module.exports = Wallet;

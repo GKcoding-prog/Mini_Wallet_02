@@ -1,46 +1,41 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
-const Wallet = require('./Wallet');
 
 const Utxo = sequelize.define('Utxo', {
   utxo_id: {
-    type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4,
+    type: DataTypes.INTEGER,
     primaryKey: true,
+    autoIncrement: true,
+    field: 'utxo_id'
   },
   wallet_id: {
-    type: DataTypes.UUID,
+    type: DataTypes.INTEGER,
     allowNull: false,
-    references: {
-      model: 'wallets',
-      key: 'wallet_id',
-    },
-    onDelete: 'CASCADE',
-    onUpdate: 'CASCADE',
+    field: 'wallet_id'
   },
   tx_hash: {
-    type: DataTypes.STRING(64),
+    type: DataTypes.STRING,
     allowNull: false,
+    field: 'tx_hash'
   },
   output_index: {
     type: DataTypes.INTEGER,
     allowNull: false,
+    field: 'output_index'
   },
   amount: {
-    type: DataTypes.BIGINT,
+    type: DataTypes.FLOAT,
     allowNull: false,
+    field: 'amount'
   },
   used: {
     type: DataTypes.BOOLEAN,
     defaultValue: false,
-  },
+    field: 'used'
+  }
 }, {
   tableName: 'utxos',
-  timestamps: false,
+  timestamps: false
 });
-
-Utxo.associate = function (models) {
-  Utxo.belongsTo(models.Wallet, { foreignKey: 'wallet_id' });
-};
 
 module.exports = Utxo;

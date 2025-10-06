@@ -3,9 +3,9 @@ const sequelize = require('../config/database');
 
 const BlacklistedToken = sequelize.define('BlacklistedToken', {
   id: {
-    type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4,
+    type: DataTypes.INTEGER,
     primaryKey: true,
+    autoIncrement: true,
   },
   token: {
     type: DataTypes.TEXT,

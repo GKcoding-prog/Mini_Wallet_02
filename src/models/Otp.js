@@ -3,16 +3,16 @@ const sequelize = require('../config/database');
 
 const Otp = sequelize.define('Otp', {
   id: {
-    type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4,
+    type: DataTypes.INTEGER,
     primaryKey: true,
+    autoIncrement: true,
   },
   email: {
-    type: DataTypes.STRING,
+    type: DataTypes.STRING(100),
     allowNull: false,
   },
   code: {
-    type: DataTypes.STRING,
+    type: DataTypes.STRING(6),
     allowNull: false,
   },
   expiresAt: {
@@ -20,8 +20,8 @@ const Otp = sequelize.define('Otp', {
     allowNull: false,
   },
 }, {
-  tableName: 'Otps',
-  // timestamps: true par défaut, donc pas besoin de le spécifier
+  tableName: 'otps',
+  timestamps: false,
 });
 
 module.exports = Otp;

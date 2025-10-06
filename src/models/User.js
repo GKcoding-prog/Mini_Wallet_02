@@ -3,14 +3,18 @@ const sequelize = require('../config/database');
 
 const User = sequelize.define('User', {
   id: {
-    type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4,
+    type: DataTypes.INTEGER,
     primaryKey: true,
+    autoIncrement: true,
+    allowNull: false,
   },
   email: {
-    type: DataTypes.STRING(100),
+    type: DataTypes.STRING,
     allowNull: false,
     unique: true,
+    validate: {
+      isEmail: true,
+    },
   },
   password: {
     type: DataTypes.STRING,
@@ -21,22 +25,31 @@ const User = sequelize.define('User', {
     allowNull: false,
   },
   role: {
-    type: DataTypes.ENUM('user', 'admin'),
+    type: DataTypes.STRING,
     allowNull: false,
     defaultValue: 'user',
   },
   created_at: {
     type: DataTypes.DATE,
+    allowNull: false,
     defaultValue: DataTypes.NOW,
+  },
+  totp_secret: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  email_2fa_enabled: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false,
   },
 }, {
   tableName: 'users',
   timestamps: false,
 });
 
-// Optionnel : méthode associate si utilisée
 User.associate = function (models) {
-  User.hasOne(models.Wallet, { foreignKey: 'user_id' });
+  User.hasOne(models.Wallet, { foreignKey: 'user_id', sourceKey: 'id' });
 };
 
 module.exports = User;

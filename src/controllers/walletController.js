@@ -52,56 +52,38 @@ async function getBalance(req, res) {
 }
 
 async function sendBitcoin(req, res) {
-  let keyPair; // Déclaration au niveau de la fonction
+  let keyPair;
   try {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ message: 'Token requis' });
+    const { fromAddress, toAddress, amount } = req.body;
+    const user = req.user; // Set by verify2FAMiddleware
 
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-    const { toAddress, amount, password } = req.body;
-
-    if (!toAddress || !amount || !password) {
-      return res.status(400).json({ message: 'Adresse de destination, montant et mot de passe requis' });
+    if (!fromAddress || !toAddress || !amount) {
+      return res.status(400).json({ message: 'Adresse d\'envoi, adresse de destination et montant requis' });
     }
 
     try {
+      bitcoin.address.toOutputScript(fromAddress, network);
       bitcoin.address.toOutputScript(toAddress, network);
     } catch (e) {
-      return res.status(400).json({ message: 'Adresse de destination invalide' });
+      return res.status(400).json({ message: 'Adresse d\'envoi ou de destination invalide' });
     }
 
-    const user = await models.User.findByPk(payload.id);
-    if (!user || !(await bcrypt.compare(password, user.password))) {
-      return res.status(401).json({ message: 'Mot de passe invalide' });
-    }
+    const wallet = await models.Wallet.findOne({ where: { user_id: user.id, address: fromAddress } });
+    if (!wallet) return res.status(404).json({ message: 'Portefeuille non trouvé pour cette adresse d\'envoi' });
 
-    const wallet = await models.Wallet.findOne({ where: { user_id: payload.id } });
-    if (!wallet) return res.status(404).json({ message: 'Portefeuille non trouvé' });
-
-    const passwordKey = crypto.createHash('sha256').update(password).digest();
-    console.log('Password used:', password);
-    console.log('passwordKey length:', passwordKey.length);
-    console.log('wallet.private_key raw:', wallet.private_key);
-    const encryptedPrivateKeyObject = JSON.parse(wallet.private_key);
-    console.log('encryptedPrivateKeyObject:', encryptedPrivateKeyObject);
+    const serverKey = Buffer.from(process.env.SERVER_MASTER_KEY, 'hex');
+    const encryptedPrivateKeyObject = JSON.parse(wallet.server_encrypted_private_key || wallet.private_key);
     try {
-      const privateKey = decryptData(encryptedPrivateKeyObject, passwordKey);
-      console.log('Decrypted privateKey:', privateKey);
-      // Validation et conversion en keyPair avec ECPair
+      const privateKey = decryptData(encryptedPrivateKeyObject, serverKey);
       try {
         keyPair = ECPair.fromWIF(privateKey, network);
       } catch (wifError) {
         console.error('WIF invalide:', wifError.message);
-        // Régénération de la clé privée si invalide
-        const newPrivateKey = ECPair.makeRandom({ network }).toWIF();
-        const newEncrypted = encryptData(newPrivateKey, passwordKey);
-        await models.Wallet.update({ private_key: JSON.stringify(newEncrypted) }, { where: { user_id: payload.id } });
-        console.log('Nouvelle clé privée générée:', newPrivateKey);
-        return res.status(400).json({ message: 'Clé privée invalide, régénérée. Relance la requête.', newPrivateKey });
+        return res.status(400).json({ message: 'Clé privée invalide' });
       }
     } catch (error) {
-      console.error('Déchiffrement ou validation échoué:', error.message);
-      return res.status(400).json({ message: 'Erreur de déchiffrement ou clé invalide: ' + error.message });
+      console.error('Déchiffrement échoué:', error.message);
+      return res.status(400).json({ message: 'Erreur de déchiffrement de la clé privée' });
     }
 
     let utxos = await models.Utxo.findAll({ where: { wallet_id: wallet.wallet_id, used: false } });
@@ -155,13 +137,13 @@ async function sendBitcoin(req, res) {
     }
     if (change > 0) {
       psbt.addOutput({
-        address: wallet.address,
+        address: fromAddress,
         value: change,
       });
     }
 
     for (let i = 0; i < utxos.length; i++) {
-      psbt.signInput(i, keyPair); // Utilisation de keyPair défini au niveau supérieur
+      psbt.signInput(i, keyPair);
     }
 
     psbt.finalizeAllInputs();
@@ -173,8 +155,8 @@ async function sendBitcoin(req, res) {
     const receiverWallet = await models.Wallet.findOne({ where: { address: toAddress } });
     const receiverId = receiverWallet ? receiverWallet.user_id : null;
 
-    const txData = { txid: response.data.tx.hash, amount, toAddress };
-    const encryptedTxData = JSON.stringify(encryptData(JSON.stringify(txData), passwordKey));
+    const txData = { txid: response.data.tx.hash, amount, fromAddress, toAddress };
+    const encryptedTxData = JSON.stringify(encryptData(JSON.stringify(txData), serverKey));
 
     await models.Transaction.create({
       wallet_id: wallet.wallet_id,
@@ -229,26 +211,18 @@ async function getTransactionHistory(req, res) {
       ],
     });
 
-    const password = req.body.password;
-    if (!password) return res.status(400).json({ message: 'Mot de passe requis pour déchiffrer les données' });
-
-    const user = await models.User.findByPk(payload.id);
-    if (!(await bcrypt.compare(password, user.password))) {
-      return res.status(401).json({ message: 'Mot de passe invalide' });
-    }
-
-    const passwordKey = crypto.createHash('sha256').update(password).digest();
+    const serverKey = Buffer.from(process.env.SERVER_MASTER_KEY, 'hex');
     const decryptedTransactions = transactions.map(tx => {
       let decryptedData = {};
       try {
         if (tx.encrypted_data) {
           const encryptedData = JSON.parse(tx.encrypted_data);
-          const rawDecryptedData = decryptData(encryptedData, passwordKey);
+          const rawDecryptedData = decryptData(encryptedData, serverKey);
           decryptedData = JSON.parse(rawDecryptedData);
         }
       } catch (error) {
         console.warn(`Échec du déchiffrement pour transaction ${tx.id}:`, error.message);
-        decryptedData = { error: 'Données corrompues ou mot de passe incorrect' };
+        decryptedData = { error: 'Données corrompues' };
       }
       return {
         id: tx.id,
@@ -270,9 +244,152 @@ async function getTransactionHistory(req, res) {
   }
 }
 
+async function sendPayment(req, res) {
+  let keyPair;
+  try {
+    const { fromAddress, toAddress, amount } = req.body;
+    const user = req.user;
+
+    if (!fromAddress || !toAddress || !amount) {
+      return res.status(400).json({ message: 'Adresse d\'envoi, adresse de destination et montant requis' });
+    }
+
+    try {
+      bitcoin.address.toOutputScript(fromAddress, network);
+      bitcoin.address.toOutputScript(toAddress, network);
+    } catch (e) {
+      return res.status(400).json({ message: 'Adresse d\'envoi ou de destination invalide' });
+    }
+
+    const wallet = await models.Wallet.findOne({ where: { user_id: user.id, address: fromAddress } });
+    if (!wallet) return res.status(404).json({ message: 'Portefeuille non trouvé pour cette adresse d\'envoi' });
+
+    const serverKey = Buffer.from(process.env.SERVER_MASTER_KEY, 'hex');
+    const encryptedPrivateKeyObject = JSON.parse(wallet.server_encrypted_private_key || wallet.private_key);
+    try {
+      const privateKey = decryptData(encryptedPrivateKeyObject, serverKey);
+      try {
+        keyPair = ECPair.fromWIF(privateKey, network);
+      } catch (wifError) {
+        console.error('WIF invalide:', wifError.message);
+        return res.status(400).json({ message: 'Clé privée invalide' });
+      }
+    } catch (error) {
+      console.error('Déchiffrement échoué:', error.message);
+      return res.status(400).json({ message: 'Erreur de déchiffrement de la clé privée' });
+    }
+
+    let utxos = await models.Utxo.findAll({ where: { wallet_id: wallet.wallet_id, used: false } });
+    if (!utxos || utxos.length === 0) {
+      const utxoResponse = await axios.get(`https://api.blockcypher.com/v1/btc/test3/addrs/${wallet.address}?unspentOnly=true`);
+      const apiUtxos = utxoResponse.data.txrefs || [];
+      for (const utxo of apiUtxos) {
+        await models.Utxo.create({
+          wallet_id: wallet.wallet_id,
+          tx_hash: utxo.tx_hash,
+          output_index: utxo.tx_output_n,
+          amount: utxo.value,
+          used: false,
+        });
+      }
+      utxos = await models.Utxo.findAll({ where: { wallet_id: wallet.wallet_id, used: false } });
+    }
+
+    if (utxos.length === 0) {
+      return res.status(400).json({ error: 'Aucun UTXO disponible' });
+    }
+
+    const psbt = new bitcoin.Psbt({ network });
+    let totalInput = 0;
+
+    for (const utxo of utxos) {
+      const txResponse = await axios.get(`https://api.blockcypher.com/v1/btc/test3/txs/${utxo.tx_hash}?includeHex=true`);
+      const rawTx = txResponse.data.hex;
+      if (!rawTx) {
+        return res.status(500).json({ message: 'Impossible de récupérer les données de la transaction UTXO' });
+      }
+      psbt.addInput({
+        hash: utxo.tx_hash,
+        index: utxo.output_index,
+        nonWitnessUtxo: Buffer.from(rawTx, 'hex'),
+      });
+      totalInput += utxo.amount;
+    }
+
+    const amountSat = parseInt(amount * 100000000);
+    psbt.addOutput({
+      address: toAddress,
+      value: amountSat,
+    });
+
+    const fee = 100;
+    const change = totalInput - amountSat - fee;
+
+    if (change < 0) {
+      return res.status(400).json({ error: 'Fonds insuffisants' });
+    }
+    if (change > 0) {
+      psbt.addOutput({
+        address: fromAddress,
+        value: change,
+      });
+    }
+
+    for (let i = 0; i < utxos.length; i++) {
+      psbt.signInput(i, keyPair);
+    }
+
+    psbt.finalizeAllInputs();
+    const tx = psbt.extractTransaction();
+    const txHex = tx.toHex();
+
+    const response = await axios.post('https://api.blockcypher.com/v1/btc/test3/txs/push', { tx: txHex });
+
+    const receiverWallet = await models.Wallet.findOne({ where: { address: toAddress } });
+    const receiverId = receiverWallet ? receiverWallet.user_id : null;
+
+    const txData = { txid: response.data.tx.hash, amount, fromAddress, toAddress };
+    const encryptedTxData = JSON.stringify(encryptData(JSON.stringify(txData), serverKey));
+
+    await models.Transaction.create({
+      wallet_id: wallet.wallet_id,
+      senderId: user.id,
+      receiverId,
+      encrypted_data: encryptedTxData,
+      type: 'withdrawal',
+      txid: response.data.tx.hash,
+      status: 'pending',
+      confirmations: 0,
+    });
+
+    if (receiverId) {
+      await models.Transaction.create({
+        wallet_id: receiverWallet.wallet_id,
+        senderId: user.id,
+        receiverId,
+        encrypted_data: encryptedTxData,
+        type: 'deposit',
+        txid: response.data.tx.hash,
+        status: 'pending',
+        confirmations: 0,
+      });
+    }
+
+    for (const utxo of utxos) {
+      await utxo.update({ used: true });
+    }
+
+    res.json({ txid: response.data.tx.hash, fee: fee / 100000000 + ' tBTC' });
+  } catch (error) {
+    console.error('Erreur lors de l\'envoi du paiement:', error);
+    res.status(500).json({ message: 'Erreur serveur: ' + error.message });
+  }
+}
+
 module.exports = {
   listUsers,
   getBalance,
   sendBitcoin,
   getTransactionHistory,
+  sendPayment,
 };

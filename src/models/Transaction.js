@@ -3,78 +3,47 @@ const sequelize = require('../config/database');
 
 const Transaction = sequelize.define('Transaction', {
   id: {
-    type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4,
+    type: DataTypes.INTEGER,
     primaryKey: true,
+    autoIncrement: true
   },
   wallet_id: {
-    type: DataTypes.UUID,
+    type: DataTypes.INTEGER,
     allowNull: false,
-    references: {
-      model: 'wallets',
-      key: 'wallet_id',
-    },
-    onDelete: 'CASCADE',
-    onUpdate: 'CASCADE',
+    field: 'wallet_id'
   },
   senderId: {
-    type: DataTypes.UUID,
-    allowNull: true,
-    references: {
-      model: 'users',
-      key: 'id',
-    },
-    onDelete: 'SET NULL',
-    onUpdate: 'CASCADE',
-    // Mappe senderId à la colonne senderid
-    field: 'senderid', 
+    type: DataTypes.INTEGER,
+    field: 'senderid'
   },
   receiverId: {
-    type: DataTypes.UUID,
-    allowNull: true,
-    references: {
-      model: 'users',
-      key: 'id',
-    },
-    onDelete: 'SET NULL',
-    onUpdate: 'CASCADE',
-    // Mappe receiverId à la colonne receiverid
-    field: 'receiverid', 
+    type: DataTypes.INTEGER,
+    field: 'receiverid'
   },
   encrypted_data: {
     type: DataTypes.TEXT,
-    allowNull: false,
+    field: 'encrypted_data'
   },
   type: {
-    type: DataTypes.ENUM('deposit', 'withdrawal'),
-    allowNull: false,
+    type: DataTypes.STRING
   },
   txid: {
-    type: DataTypes.STRING(64),
-    allowNull: true,
+    type: DataTypes.STRING
   },
   status: {
-    type: DataTypes.ENUM('pending', 'confirmed', 'failed'),
-    allowNull: false,
-    defaultValue: 'pending',
+    type: DataTypes.STRING
   },
   confirmations: {
-    type: DataTypes.INTEGER,
-    defaultValue: 0,
+    type: DataTypes.INTEGER
   },
   created_at: {
     type: DataTypes.DATE,
     defaultValue: DataTypes.NOW,
-  },
+    field: 'created_at'
+  }
 }, {
   tableName: 'transactions',
-  timestamps: false,
+  timestamps: false
 });
-
-// Optionnel : méthode associate
-Transaction.associate = function (models) {
-  Transaction.belongsTo(models.User, { as: 'Sender', foreignKey: 'senderId' });
-  Transaction.belongsTo(models.User, { as: 'Receiver', foreignKey: 'receiverId' });
-};
 
 module.exports = Transaction;
