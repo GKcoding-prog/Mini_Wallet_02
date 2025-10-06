@@ -1,3 +1,4 @@
+// models/User.js
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 
@@ -50,6 +51,8 @@ const User = sequelize.define('User', {
 
 User.associate = function (models) {
   User.hasOne(models.Wallet, { foreignKey: 'user_id', sourceKey: 'id' });
+  User.hasMany(models.Transaction, { as: 'SentTransactions', foreignKey: 'senderid' });
+  User.hasMany(models.Transaction, { as: 'ReceivedTransactions', foreignKey: 'receiverid' });
 };
 
 module.exports = User;

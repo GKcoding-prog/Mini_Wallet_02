@@ -195,12 +195,36 @@ async function sendBitcoin(req, res) {
 
 async function getTransactionHistory(req, res) {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ message: 'Token requis' });
+    process.stdout.write('Log: Fonction getTransactionHistory appelée\n');
+    process.stdout.write('Log: En-tête Authorization: ' + JSON.stringify(req.headers.authorization) + '\n');
+    process.stdout.write('Log: Corps de la requête: ' + JSON.stringify(req.body) + '\n');
+
+    const token = req.headers.authorization?.split(' ')[1] || req.body.token;
+    if (!token) {
+      process.stdout.write('Log: Aucun token trouvé\n');
+      return res.status(401).json({ message: 'Token requis' });
+    }
+
+    process.stdout.write('Log: Token extrait: ' + token + '\n');
 
     const payload = jwt.verify(token, process.env.JWT_SECRET);
-    const wallet = await models.Wallet.findOne({ where: { user_id: payload.id } });
-    if (!wallet) return res.status(404).json({ message: 'Portefeuille non trouvé' });
+    process.stdout.write('Log: Payload décodé: ' + JSON.stringify(payload) + '\n');
+
+    const user = await models.User.findByPk(payload.id);
+    if (!user) {
+      process.stdout.write('Log: Utilisateur non trouvé\n');
+      return res.status(404).json({ message: 'Utilisateur non trouvé' });
+    }
+
+    process.stdout.write('Log: Utilisateur trouvé: ' + user.id + ', ' + user.email + '\n');
+
+    const wallet = await models.Wallet.findOne({ where: { user_id: user.id } });
+    if (!wallet) {
+      process.stdout.write('Log: Portefeuille non trouvé\n');
+      return res.status(404).json({ message: 'Portefeuille non trouvé' });
+    }
+
+    process.stdout.write('Log: Portefeuille trouvé: ' + wallet.wallet_id + ', ' + wallet.address + '\n');
 
     const transactions = await models.Transaction.findAll({
       where: { wallet_id: wallet.wallet_id },
@@ -210,6 +234,8 @@ async function getTransactionHistory(req, res) {
         { model: models.User, as: 'Receiver', attributes: ['email'] },
       ],
     });
+
+    process.stdout.write('Log: Transactions récupérées: ' + transactions.length + '\n');
 
     const serverKey = Buffer.from(process.env.SERVER_MASTER_KEY, 'hex');
     const decryptedTransactions = transactions.map(tx => {
@@ -221,7 +247,7 @@ async function getTransactionHistory(req, res) {
           decryptedData = JSON.parse(rawDecryptedData);
         }
       } catch (error) {
-        console.warn(`Échec du déchiffrement pour transaction ${tx.id}:`, error.message);
+        process.stdout.write('Log: Échec du déchiffrement pour transaction ' + tx.id + ': ' + error.message + '\n');
         decryptedData = { error: 'Données corrompues' };
       }
       return {
@@ -237,10 +263,12 @@ async function getTransactionHistory(req, res) {
       };
     });
 
+    process.stdout.write('Log: Transactions décryptées: ' + JSON.stringify(decryptedTransactions) + '\n');
+
     res.json(decryptedTransactions);
   } catch (error) {
-    console.error('Erreur lors de la récupération de l\'historique:', error);
-    res.status(500).json({ message: 'Erreur serveur: ' + error.message });
+    process.stdout.write('Log: Erreur lors de la récupération de l\'historique: ' + error.message + '\n');
+    res.status(500).json({ message: 'Erreur serveur' });
   }
 }
 

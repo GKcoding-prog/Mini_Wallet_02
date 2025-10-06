@@ -1,20 +1,22 @@
+// src/models/index.js
 const sequelize = require('../config/database');
-const userModel = require('./User');
-const walletModel = require('./Wallet');
-const transactionModel = require('./Transaction');
-const utxoModel = require('./Utxo');
-const otpModel = require('./Otp');
-const blacklistedTokenModel = require('./BlacklistedToken');
+const User = require('./User');
+const Wallet = require('./Wallet');
+const Transaction = require('./Transaction');
+const Utxo = require('./Utxo');
+const Otp = require('./Otp');
+const BlacklistedToken = require('./BlacklistedToken');
 
 const models = {
-  User: userModel,
-  Wallet: walletModel,
-  Transaction: transactionModel,
-  Utxo: utxoModel,
-  Otp: otpModel,
-  BlacklistedToken: blacklistedTokenModel,
+  User,
+  Wallet,
+  Transaction,
+  Utxo,
+  Otp,
+  BlacklistedToken,
 };
 
+// Appeler les méthodes associate des modèles
 Object.values(models).forEach(model => {
   if (model.associate) {
     model.associate(models);
