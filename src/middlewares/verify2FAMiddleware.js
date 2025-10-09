@@ -5,9 +5,14 @@ const { decryptData } = require('../services/encryption');
 
 async function verify2FAMiddleware(req, res, next) {
   try {
-    const { token, emailOtp, totpCode } = req.body;
-    if (!token) return res.status(401).json({ message: 'Token requis' });
+    // Récupérer le token JWT depuis l'en-tête Authorization
+    const authHeader = req.headers['authorization'] || req.headers['Authorization'];
+    if (!authHeader) return res.status(401).json({ message: 'Token requis' });
+    const token = authHeader.startsWith('Bearer ')
+      ? authHeader.split(' ')[1]
+      : authHeader;
 
+    const { emailOtp, totpCode } = req.body;
     const payload = jwt.verify(token, process.env.JWT_SECRET);
     const user = await models.User.findByPk(payload.id);
     if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });

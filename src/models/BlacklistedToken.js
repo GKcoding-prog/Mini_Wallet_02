@@ -15,6 +15,8 @@ const BlacklistedToken = sequelize.define('BlacklistedToken', {
   expiresAt: {
     type: DataTypes.DATE,
     allowNull: false,
+  // Align with existing Postgres column name (lowercase) to avoid quoted identifier mismatch
+  field: 'expiresat',
   },
 }, {
   tableName: 'blacklisted_tokens',

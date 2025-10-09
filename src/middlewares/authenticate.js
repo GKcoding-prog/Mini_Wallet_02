@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { User, BlacklistedToken } = require('../models');
+const { models } = require('../models');
 require('dotenv').config();
 
 async function authenticate(req, res, next) {
@@ -8,12 +8,12 @@ async function authenticate(req, res, next) {
 
   const token = authHeader.split(' ')[1] || authHeader;
 
-  const blacklisted = await BlacklistedToken.findOne({ where: { token } });
+  const blacklisted = await models.BlacklistedToken.findOne({ where: { token } });
   if (blacklisted) return res.status(401).json({ message: 'Token invalide' });
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findByPk(decoded.id);
+    const user = await models.User.findByPk(decoded.id);
     if (!user) return res.status(401).json({ message: 'Utilisateur non trouvé' });
 
     req.user = { id: user.id, email: user.email, aesKey: decoded.aesKey };
