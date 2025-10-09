@@ -230,8 +230,18 @@ async function getTransactionHistory(req, res) {
       where: { wallet_id: wallet.wallet_id },
       attributes: ['id', 'type', 'txid', 'status', 'confirmations', 'created_at', 'encrypted_data'],
       include: [
-        { model: models.User, as: 'Sender', attributes: ['email'] },
-        { model: models.User, as: 'Receiver', attributes: ['email'] },
+        {
+          model: models.User,
+          as: 'Sender',
+          attributes: ['email'],
+          include: [{ model: models.Wallet, attributes: ['address'] }],
+        },
+        {
+          model: models.User,
+          as: 'Receiver',
+          attributes: ['email'],
+          include: [{ model: models.Wallet, attributes: ['address'] }],
+        },
       ],
     });
 
@@ -241,9 +251,13 @@ async function getTransactionHistory(req, res) {
     const decryptedTransactions = transactions.map(tx => {
       let decryptedData = {};
       try {
+        process.stdout.write('Log: Début déchiffrement pour transaction ' + tx.id + '\n');
+        process.stdout.write('Log: encrypted_data brute: ' + JSON.stringify(tx.encrypted_data) + '\n');
         if (tx.encrypted_data) {
           const encryptedData = JSON.parse(tx.encrypted_data);
+          process.stdout.write('Log: encryptedData après parse: ' + JSON.stringify(encryptedData) + '\n');
           const rawDecryptedData = decryptData(encryptedData, serverKey);
+          process.stdout.write('Log: rawDecryptedData: ' + rawDecryptedData + '\n');
           decryptedData = JSON.parse(rawDecryptedData);
         }
       } catch (error) {
@@ -258,7 +272,9 @@ async function getTransactionHistory(req, res) {
         confirmations: tx.confirmations,
         created_at: tx.created_at,
         senderEmail: tx.Sender?.email || null,
+        senderAddress: tx.Sender?.Wallet?.address || null,
         receiverEmail: tx.Receiver?.email || null,
+        receiverAddress: tx.Receiver?.Wallet?.address || null,
         ...decryptedData,
       };
     });
